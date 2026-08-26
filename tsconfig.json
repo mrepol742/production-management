@@ -41,5 +41,5 @@
         "moduleDetection": "force",
         "skipLibCheck": true,
     },
-    "include": ["resources/react/**/*"],
+    "include": ["resources/react/**/*", "resources/css"],
 }

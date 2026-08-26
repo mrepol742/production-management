@@ -3,7 +3,7 @@ import laravel from 'laravel-vite-plugin'
 import react from '@vitejs/plugin-react'
 import htmlMinifier from 'vite-plugin-html-minifier'
 import path from 'node:path'
-import autoprefixer from 'autoprefixer'
+import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
     base: '/',
@@ -35,18 +35,6 @@ export default defineConfig({
             },
         },
     },
-    css: {
-        postcss: {
-            plugins: [
-                autoprefixer({}), // add options if needed
-            ],
-            sass: {
-                sassOptions: {
-                    quietDeps: true,
-                },
-            },
-        },
-    },
     esbuild: {
         loader: 'tsx',
         include: /resources\/.*\.tsx?$/,
@@ -61,6 +49,7 @@ export default defineConfig({
         },
     },
     plugins: [
+        tailwindcss(),
         react(),
         htmlMinifier({
             collapseWhitespace: true,
@@ -69,7 +58,7 @@ export default defineConfig({
             useShortDoctype: true,
         }),
         laravel({
-            input: [],
+            input: ['resources/react/index.tsx', 'resources/css/app.css'],
             refresh: true,
         }),
     ],
