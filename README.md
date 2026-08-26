@@ -1,5 +1,6 @@
-# laravel-react-ts-template
-I did it so you don't have to (with typescript)
+# production-management
+
+Manages configuration, deployments, account access, and deployment history for apps running in your own server supports laravel/php, node/npx/next and cloudflare as of this moment.
 
 ## Setting up
 - install dependecies
@@ -40,3 +41,13 @@ I did it so you don't have to (with typescript)
 ```
   php artisan optimize
 ```
+
+## License
+
+# License
+
+This project is licensed under the **PolyForm Noncommercial License 1.0.0**.
+
+See the [LICENSE.md](LICENSE.md) file for details.
+
+© 2026 Melvin Jones Repol.
