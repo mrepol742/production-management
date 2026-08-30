@@ -54,13 +54,10 @@
                 {{ auth()->user()->role === 'super_admin' ? 'Super Admin' : 'Admin' }}
             </p>
 
-            <form method="POST" action="{{ route('logout') }}">
-                @csrf
-
-                <button type="submit" class="text-sm text-gray-600 hover:text-accent-600">
-                    Sign out
-                </button>
-            </form>
+            <a href="{{ route('logout') }}"
+                class="text-sm text-gray-600 hover:text-accent-600">
+                Sign out
+            </a>
         </div>
     </aside>
 

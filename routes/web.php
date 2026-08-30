@@ -8,12 +8,12 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn() => redirect()->route('deployments.index'));
 
-Route::middleware('guest')->group(function () {
+Route::middleware(['guest', 'throttle:auth-actions'])->group(function () {
     Route::get('/login', [LoginController::class, 'index'])->name('login');
     Route::post('/login', [LoginController::class, 'login'])->name('login.attempt');
 });
 
-Route::post('/logout', [LoginController::class, 'logout'])
+Route::get('/logout', [LoginController::class, 'logout'])
     ->middleware('auth')
     ->name('logout');
 
