@@ -5,6 +5,8 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Sentry\Laravel\Integration as SentryIntegration;
+use Illuminate\Support\Facades\App;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -27,6 +29,10 @@ return Application::configure(basePath: dirname(__DIR__))
         );
     })
     ->withExceptions(function (Exceptions $exceptions) {
+        if (App::environment('production')) {
+            SentryIntegration::handles($exceptions);
+        }
+
         // This simplify laravel exception logging by only logging relevant frames
         $exceptions->report(function (Throwable $e) {
             $trace = collect($e->getTrace())
