@@ -1,0 +1,13 @@
+@import 'tailwindcss';
+
+@theme {
+    --color-accent-50: #fef2f2;
+    --color-accent-100: #fee2e2;
+    --color-accent-500: #dc2626;
+    --color-accent-600: #b91c1c;
+    --color-accent-700: #991b1b;
+}
+
+body {
+    font-family: 'Lora', sans-serif;
+}

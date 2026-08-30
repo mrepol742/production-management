@@ -1,21 +1,30 @@
 import { defineConfig } from 'vite'
 import laravel from 'laravel-vite-plugin'
-import react from '@vitejs/plugin-react'
-import htmlMinifier from 'vite-plugin-html-minifier'
-import path from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
-    base: '/',
+    plugins: [
+        laravel({
+            input: ['resources/scss/app.scss'],
+            refresh: true,
+        }),
+        tailwindcss(),
+    ],
+    server: {
+        host: 'localhost',
+        port: 5173,
+        strictPort: true,
+        cors: true,
+        headers: {
+            'Cross-Origin-Opener-Policy': 'same-origin',
+            'Cross-Origin-Embedder-Policy': 'require-corp',
+        },
+    },
     build: {
         outDir: 'public/build',
         chunkSizeWarningLimit: 800,
-        minify: 'terser',
         sourcemap: false,
         rollupOptions: {
-            input: {
-                app: path.resolve(__dirname, 'resources/react/index.tsx'),
-            },
             onwarn(warning, warn) {
                 if (warning.plugin === 'vite:esbuild') {
                     throw new Error(`Vite ESBuild error: ${warning.message}`)
@@ -33,43 +42,6 @@ export default defineConfig({
                     }
                 },
             },
-        },
-    },
-    esbuild: {
-        loader: 'tsx',
-        include: /resources\/.*\.tsx?$/,
-        exclude: [],
-    },
-    optimizeDeps: {
-        force: true,
-        rolldownOptions: {
-            moduleTypes: {
-                '*.tsx': 'ts',
-            },
-        },
-    },
-    plugins: [
-        tailwindcss(),
-        react(),
-        htmlMinifier({
-            collapseWhitespace: true,
-            removeComments: true,
-            removeRedundantAttributes: true,
-            useShortDoctype: true,
-        }),
-        laravel({
-            input: ['resources/react/index.tsx', 'resources/css/app.css'],
-            refresh: true,
-        }),
-    ],
-    server: {
-        host: 'localhost',
-        port: 5173,
-        strictPort: true,
-        cors: true,
-        headers: {
-            'Cross-Origin-Opener-Policy': 'same-origin',
-            'Cross-Origin-Embedder-Policy': 'require-corp',
         },
     },
 })
