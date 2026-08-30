@@ -75,6 +75,7 @@ class DeploymentController extends Controller
         ]);
 
         $data['created_by'] = $request->user()->id;
+        $data['updated_by'] = $request->user()->id;
         $data['status'] = Deployment::STATUS_UNKNOWN;
         $data['branch'] = $data['branch'] ?: 'main';
 

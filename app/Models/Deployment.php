@@ -34,6 +34,7 @@ class Deployment extends Model
         'pm2_instances',
         'status',
         'created_by',
+        'updated_by',
         'last_deployed_at',
     ];
 
