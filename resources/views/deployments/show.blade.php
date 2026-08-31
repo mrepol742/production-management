@@ -53,9 +53,17 @@
                     </button>
                 </form>
             @endif
+            @if($deployment->ssh_config_path)
+                <form method="POST" action="{{ route('deployments.ssh-config.sync', $deployment) }}">
+                    @csrf
+                    <button type="submit" class="w-full sm:w-auto border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-medium px-4 py-2 rounded-md whitespace-nowrap">
+                        Sync SSH config
+                    </button>
+                </form>
+            @endif
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
             <div class="border border-gray-200 rounded-md p-3">
                 <p class="text-xs text-gray-500">Stored key</p>
                 <p class="text-sm font-medium text-gray-900 break-words">{{ $deployment->hasStoredSshKey() ? ($deployment->ssh_key_name ?: 'Configured') : 'Not configured' }}</p>
@@ -63,6 +71,10 @@
             <div class="border border-gray-200 rounded-md p-3">
                 <p class="text-xs text-gray-500">Source path</p>
                 <p class="text-sm font-medium text-gray-900 break-all">{{ $deployment->ssh_private_key_path ?: 'None' }}</p>
+            </div>
+            <div class="border border-gray-200 rounded-md p-3">
+                <p class="text-xs text-gray-500">SSH config</p>
+                <p class="text-sm font-medium text-gray-900 break-all">{{ $deployment->ssh_config_path ?: ($deployment->hasStoredSshConfig() ? 'Stored in database' : 'None') }}</p>
             </div>
         </div>
 
@@ -81,8 +93,19 @@
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Paste private key</label>
-                <textarea name="ssh_private_key" rows="8" spellcheck="false" placeholder="Leave blank to keep the current stored key. Submit an empty path and empty key to remove it."
+                <textarea name="ssh_private_key" rows="8" spellcheck="false" placeholder="Leave blank to keep the current stored key."
                     class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-mono focus:border-accent-500 focus:ring-accent-500 focus:outline-none">{{ old('ssh_private_key') }}</textarea>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">SSH config path for aliases</label>
+                <input type="text" name="ssh_config_path" value="{{ old('ssh_config_path', $deployment->ssh_config_path) }}"
+                    class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-mono focus:border-accent-500 focus:ring-accent-500 focus:outline-none">
+                <p class="text-xs text-gray-400 mt-1 break-words">Set this when the remote uses an alias like <code>git@devpulse:org/repo.git</code> and the mapping exists in an SSH config file.</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Paste SSH config snippet</label>
+                <textarea name="ssh_config" rows="6" spellcheck="false" placeholder="Leave blank to keep the current stored config."
+                    class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-mono focus:border-accent-500 focus:ring-accent-500 focus:outline-none">{{ old('ssh_config') }}</textarea>
             </div>
             <div class="flex items-center gap-3">
                 <button type="submit" class="w-full sm:w-auto bg-accent-600 hover:bg-accent-700 text-white text-sm font-medium px-4 py-2 rounded-md">
@@ -94,7 +117,9 @@
         <div class="mt-5 pt-5 border-t border-gray-200 space-y-2">
             <p class="text-xs font-medium text-gray-700">How to get a key</p>
             <p class="text-xs text-gray-500 break-words">Generate a new read-only deploy key with <code>ssh-keygen -t ed25519 -f ~/.ssh/github-deploy-key -C "melvin deploy"</code>, then add the <code>.pub</code> file to the GitHub repo deploy keys page with read-only access.</p>
-            <p class="text-xs text-gray-500 break-words">To import an existing key already on the server, set the source path above or run <code>php artisan deployments:sync-ssh-key {{ $deployment->id }} --from=/home/user/.ssh/github-deploy-key</code>.</p>
+            <p class="text-xs text-gray-500 break-words">To import an existing key already on the server, use <code>php artisan deployments:sync-ssh {{ $deployment->id }} --key=/home/user/.ssh/github-deploy-key</code>.</p>
+            <p class="text-xs text-gray-500 break-words">To import an existing SSH alias config, use <code>php artisan deployments:sync-ssh {{ $deployment->id }} --config=/home/user/.ssh/config</code>.</p>
+            <p class="text-xs text-gray-500 break-words">If your Git remote uses an alias like <code>devpulse</code>, also import or paste the matching SSH config entry so Melvin can resolve that alias during Git operations.</p>
         </div>
     </div>
     @endif

@@ -78,13 +78,25 @@ Then configure the deployment in Production Management using either:
 If the key already exists on the server, you can import it from the UI or with Artisan:
 
 ```bash
-php artisan deployments:sync-ssh-key DEPLOYMENT_ID --from=/home/user/.ssh/github-deploy-key
+php artisan deployments:sync-ssh DEPLOYMENT_ID --key=/home/user/.ssh/github-deploy-key
 ```
 
-If the deployment already has a saved source path, you can sync again later without passing `--from`:
+If your Git remote uses an alias such as `git@ascendensasia:team/repo.git`, also sync the SSH config file that contains the alias mapping:
 
 ```bash
-php artisan deployments:sync-ssh-key DEPLOYMENT_ID
+php artisan deployments:sync-ssh DEPLOYMENT_ID --config=/home/user/.ssh/config
+```
+
+You can sync both in one command:
+
+```bash
+php artisan deployments:sync-ssh DEPLOYMENT_ID --key=/home/user/.ssh/github-deploy-key --config=/home/user/.ssh/config
+```
+
+If saved source paths already exist on the deployment, you can sync again later without passing options:
+
+```bash
+php artisan deployments:sync-ssh DEPLOYMENT_ID
 ```
 
 ## Setup

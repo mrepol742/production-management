@@ -68,6 +68,9 @@ Route::middleware(['auth', 'role:super_admin'])->group(function () {
     Route::post('/deployments/{deployment}/ssh-key/sync', [DeploymentController::class, 'syncSshKey'])->name(
         'deployments.ssh-key.sync',
     );
+    Route::post('/deployments/{deployment}/ssh-config/sync', [DeploymentController::class, 'syncSshConfig'])->name(
+        'deployments.ssh-config.sync',
+    );
 
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
     Route::get('/users/new', [UserController::class, 'create'])->name('users.create');

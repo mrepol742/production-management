@@ -33,6 +33,8 @@ class Deployment extends Model
         'ssh_key_name',
         'ssh_private_key',
         'ssh_private_key_path',
+        'ssh_config',
+        'ssh_config_path',
         'pm2_name',
         'pm2_instances',
         'status',
@@ -52,6 +54,7 @@ class Deployment extends Model
         return [
             'last_deployed_at' => 'datetime',
             'ssh_private_key' => 'encrypted',
+            'ssh_config' => 'encrypted',
         ];
     }
 
@@ -131,5 +134,13 @@ class Deployment extends Model
     public function hasStoredSshKey(): bool
     {
         return filled($this->ssh_private_key);
+    }
+
+    /**
+     * Determine whether this deployment has an SSH config configured for Git operations.
+     */
+    public function hasStoredSshConfig(): bool
+    {
+        return filled($this->ssh_config);
     }
 }

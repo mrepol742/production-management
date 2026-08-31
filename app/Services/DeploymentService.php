@@ -9,6 +9,28 @@ use Symfony\Component\Process\Process;
 class DeploymentService
 {
     /**
+     * Build a writable runtime home for external tools invoked by PHP.
+     */
+    protected function runtimeHome(): string
+    {
+        $path = storage_path('app/runtime-home');
+        File::ensureDirectoryExists($path, 0700, true);
+
+        return $path;
+    }
+
+    /**
+     * Build a writable PM2 home directory for the current application.
+     */
+    protected function pm2Home(): string
+    {
+        $path = storage_path('app/runtime-pm2');
+        File::ensureDirectoryExists($path, 0700, true);
+
+        return $path;
+    }
+
+    /**
      * Run a command in the given directory and return the result.
      * 
      * @param array $command The command to run
@@ -17,7 +39,9 @@ class DeploymentService
      */
     protected function run(array $command, string $cwd, array $env = []): array
     {
-        $process = new Process($command, $cwd, $env ?: null);
+        $process = new Process($command, $cwd, $env + [
+            'HOME' => $this->runtimeHome(),
+        ]);
         $process->setTimeout(600);
 
         try {
@@ -40,7 +64,7 @@ class DeploymentService
      */
     protected function runGit(Deployment $deployment, array $command, string $cwd): array
     {
-        if (! $deployment->hasStoredSshKey()) {
+        if (! $deployment->hasStoredSshKey() && ! $deployment->hasStoredSshConfig()) {
             return $this->run($command, $cwd);
         }
 
@@ -48,13 +72,31 @@ class DeploymentService
         File::ensureDirectoryExists($directory, 0700, true);
 
         $keyPath = $directory.'/deployment-'.$deployment->id;
-        File::put($keyPath, rtrim((string) $deployment->ssh_private_key)."\n");
-        @chmod($keyPath, 0600);
+        $configPath = $directory.'/deployment-'.$deployment->id.'.config';
+        $knownHostsPath = $directory.'/known_hosts';
+        $sshCommandParts = ['ssh'];
 
-        $sshCommand = sprintf(
-            'ssh -i %s -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new',
-            escapeshellarg($keyPath),
-        );
+        if ($deployment->hasStoredSshKey()) {
+            File::put($keyPath, rtrim((string) $deployment->ssh_private_key)."\n");
+            @chmod($keyPath, 0600);
+            $sshCommandParts[] = '-i';
+            $sshCommandParts[] = escapeshellarg($keyPath);
+            $sshCommandParts[] = '-o';
+            $sshCommandParts[] = 'IdentitiesOnly=yes';
+        }
+
+        if ($deployment->hasStoredSshConfig()) {
+            File::put($configPath, rtrim((string) $deployment->ssh_config)."\n");
+            @chmod($configPath, 0600);
+            $sshCommandParts[] = '-F';
+            $sshCommandParts[] = escapeshellarg($configPath);
+        }
+
+        $sshCommandParts[] = '-o';
+        $sshCommandParts[] = 'StrictHostKeyChecking=accept-new';
+        $sshCommandParts[] = '-o';
+        $sshCommandParts[] = 'UserKnownHostsFile='.escapeshellarg($knownHostsPath);
+        $sshCommand = implode(' ', $sshCommandParts);
 
         try {
             return $this->run($command, $cwd, [
@@ -62,6 +104,7 @@ class DeploymentService
             ]);
         } finally {
             @unlink($keyPath);
+            @unlink($configPath);
         }
     }
 
@@ -135,6 +178,61 @@ class DeploymentService
             $keyName ?: basename($sourcePath),
             $sourcePath,
         );
+    }
+
+    /**
+     * Store the SSH config for a deployment.
+     */
+    public function updateSshConfig(
+        Deployment $deployment,
+        ?string $sshConfig,
+        ?string $sourcePath = null,
+    ): array {
+        $sshConfig = $sshConfig !== null ? trim($sshConfig) : null;
+
+        if (blank($sshConfig)) {
+            $deployment->update([
+                'ssh_config' => null,
+                'ssh_config_path' => null,
+            ]);
+
+            return ['success' => true, 'output' => 'Stored SSH config removed.'];
+        }
+
+        if (! str_contains($sshConfig, 'Host ')) {
+            return ['success' => false, 'output' => 'The provided SSH config does not look valid.'];
+        }
+
+        $deployment->update([
+            'ssh_config' => $sshConfig,
+            'ssh_config_path' => $sourcePath,
+        ]);
+
+        return ['success' => true, 'output' => 'Stored SSH config updated for Git operations.'];
+    }
+
+    /**
+     * Import the SSH config from a file on disk.
+     */
+    public function syncSshConfigFromPath(Deployment $deployment, string $sourcePath): array
+    {
+        $sourcePath = trim($sourcePath);
+
+        if ($sourcePath === '') {
+            return ['success' => false, 'output' => 'SSH config source path is required.'];
+        }
+
+        if (! is_file($sourcePath) || ! is_readable($sourcePath)) {
+            return ['success' => false, 'output' => 'SSH config source path is not readable: '.$sourcePath];
+        }
+
+        $contents = file_get_contents($sourcePath);
+
+        if ($contents === false) {
+            return ['success' => false, 'output' => 'Failed to read SSH config source path: '.$sourcePath];
+        }
+
+        return $this->updateSshConfig($deployment, $contents, $sourcePath);
     }
 
     /**
@@ -277,7 +375,9 @@ class DeploymentService
         $bin = env('PM2_BIN', 'pm2');
         $target = $deployment->pm2_instances ?: $deployment->pm2_name;
 
-        return $this->run([$bin, 'restart', $target], $deployment->path);
+        return $this->run([$bin, 'restart', $target], $deployment->path, [
+            'PM2_HOME' => $this->pm2Home(),
+        ]);
     }
 
     /**
@@ -291,7 +391,9 @@ class DeploymentService
         $bin = env('PM2_BIN', 'pm2');
         $target = $deployment->pm2_instances ?: $deployment->pm2_name;
 
-        return $this->run([$bin, 'stop', $target], $deployment->path);
+        return $this->run([$bin, 'stop', $target], $deployment->path, [
+            'PM2_HOME' => $this->pm2Home(),
+        ]);
     }
 
     /**

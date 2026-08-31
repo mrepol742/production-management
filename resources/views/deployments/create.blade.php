@@ -62,6 +62,19 @@
                     <textarea name="ssh_private_key" rows="8" spellcheck="false" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
                         class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-mono focus:border-accent-500 focus:ring-accent-500 focus:outline-none">{{ old('ssh_private_key') }}</textarea>
                 </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">SSH config path for aliases</label>
+                    <input type="text" name="ssh_config_path" value="{{ old('ssh_config_path') }}" placeholder="/home/user/.ssh/config"
+                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-mono focus:border-accent-500 focus:ring-accent-500 focus:outline-none">
+                    <p class="text-xs text-gray-400 mt-1">Use this if your Git remote depends on an SSH alias such as <code>git@devpulse:org/repo.git</code>.</p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Or paste SSH config snippet</label>
+                    <textarea name="ssh_config" rows="6" spellcheck="false" placeholder="Host devpulse&#10;    HostName github.com&#10;    User git&#10;    IdentityFile ~/.ssh/github-deploy-key"
+                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-mono focus:border-accent-500 focus:ring-accent-500 focus:outline-none">{{ old('ssh_config') }}</textarea>
+                </div>
             </div>
 
             <div class="grid grid-cols-2 gap-4">
