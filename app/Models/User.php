@@ -91,6 +91,11 @@ class User extends Authenticatable
         return $this->hasMany(DeploymentLog::class, 'user_id');
     }
 
+    public function deploymentJobs(): HasMany
+    {
+        return $this->hasMany(DeploymentJob::class, 'requested_by');
+    }
+
     /**
      * Get the deployments assigned to the user.
      * 

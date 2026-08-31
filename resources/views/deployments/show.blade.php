@@ -27,7 +27,7 @@
         @endif
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <div class="bg-white border border-gray-200 rounded-lg p-4">
             <p class="text-xs text-gray-500">Branch</p>
             <p class="text-sm font-medium text-gray-900 break-words">{{ $deployment->branch }}</p>
@@ -36,6 +36,20 @@
             <p class="text-xs text-gray-500">Last deployed</p>
             <p class="text-sm font-medium text-gray-900">{{ $deployment->last_deployed_at ? $deployment->last_deployed_at->diffForHumans() : 'Never' }}</p>
         </div>
+        <div class="bg-white border border-gray-200 rounded-lg p-4">
+            <p class="text-xs text-gray-500">PM2 home</p>
+            <p class="text-sm font-medium text-gray-900 break-all">{{ $deployment->pm2_home ?: 'App-managed runtime' }}</p>
+        </div>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded-lg p-4 sm:p-5 mb-6">
+        <p class="text-sm font-medium text-gray-900 mb-2">Deploy command</p>
+        @if($deployment->deploy_command)
+            <pre class="text-xs text-gray-600 whitespace-pre-wrap break-words overflow-x-auto">{{ $deployment->deploy_command }}</pre>
+        @else
+            <p class="text-sm text-gray-500">No deploy command configured yet.</p>
+        @endif
+        <p class="text-xs text-gray-400 mt-3">This command runs only when a pending deployment job is processed by <code>php artisan deployments:run-pending</code>.</p>
     </div>
 
     @if(auth()->user()->isSuperAdmin())
@@ -130,39 +144,19 @@
             <form method="POST" action="{{ route('deployments.redeploy', $deployment) }}" class="w-full sm:w-auto">
                 @csrf
                 <button type="submit" class="w-full sm:w-auto bg-accent-600 hover:bg-accent-700 text-white text-sm font-medium px-4 py-2 rounded-md">
-                    Redeploy
+                    Deploy Now
                 </button>
             </form>
 
             <form method="POST" action="{{ route('deployments.rebase', $deployment) }}" class="w-full sm:w-auto">
                 @csrf
                 <button type="submit" class="w-full sm:w-auto border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-medium px-4 py-2 rounded-md">
-                    Update / Rebase
+                    Retry Last Deploy
                 </button>
             </form>
-
-            @if($deployment->status === 'paused')
-                <form method="POST" action="{{ route('deployments.resume', $deployment) }}" class="w-full sm:w-auto">
-                    @csrf
-                    <button type="submit" class="w-full sm:w-auto border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-medium px-4 py-2 rounded-md">
-                        Resume
-                    </button>
-                </form>
-            @else
-                <form method="POST" action="{{ route('deployments.pause', $deployment) }}" class="w-full sm:w-auto">
-                    @csrf
-                    <button type="submit" class="w-full sm:w-auto border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-medium px-4 py-2 rounded-md">
-                        Pause
-                    </button>
-                </form>
-            @endif
         </div>
         <p class="text-xs text-gray-400 mt-3">
-            @if($deployment->isLaravel())
-                Redeploy rebases from git then runs php artisan optimize. Pause runs php artisan down.
-            @else
-                Redeploy rebases from git then runs pm2 restart {{ $deployment->pm2_instances ?: $deployment->pm2_name }}. Pause runs pm2 stop.
-            @endif
+            Queue deployment jobs from the web UI. Execute them later with cron under the correct server user using <code>php artisan deployments:run-pending</code>.
         </p>
     </div>
 
@@ -223,6 +217,37 @@
         </form>
     </div>
     @endif
+
+    <div class="bg-white border border-gray-200 rounded-lg p-4 sm:p-5 mb-6">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
+            <p class="text-sm font-medium text-gray-900">Recent jobs</p>
+            <span class="text-xs text-gray-400">Processed by cron</span>
+        </div>
+        @if($recentJobs->isEmpty())
+            <p class="text-sm text-gray-500">No deployment jobs queued yet.</p>
+        @else
+            <div class="space-y-3">
+                @foreach($recentJobs as $job)
+                    <details class="border border-gray-200 rounded-md">
+                        <summary class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between px-3 py-2 cursor-pointer text-sm">
+                            <span class="font-medium text-gray-900">Job #{{ $job->id }} {{ str_replace('_', ' ', ucfirst($job->action)) }}</span>
+                            <span class="flex items-center gap-3">
+                                <span class="text-xs text-gray-500">{{ ucfirst($job->status) }}</span>
+                                <span class="text-xs text-gray-400">{{ $job->created_at->diffForHumans() }}</span>
+                            </span>
+                        </summary>
+                        <div class="px-3 pb-3 space-y-2">
+                            <p class="text-xs text-gray-500">Requested by {{ $job->requestedBy?->name ?? 'System' }}</p>
+                            <pre class="text-xs text-gray-600 whitespace-pre-wrap break-words overflow-x-auto">{{ $job->command }}</pre>
+                            @if($job->output)
+                                <pre class="text-xs text-gray-600 whitespace-pre-wrap break-words overflow-x-auto">{{ $job->output }}</pre>
+                            @endif
+                        </div>
+                    </details>
+                @endforeach
+            </div>
+        @endif
+    </div>
 
     <div class="bg-white border border-gray-200 rounded-lg p-4 sm:p-5">
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">

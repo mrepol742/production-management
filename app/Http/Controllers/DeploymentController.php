@@ -69,6 +69,7 @@ class DeploymentController extends Controller
             'type' => ['required', 'in:laravel,node'],
             'path' => ['required', 'string', 'max:255'],
             'repo_url' => ['nullable', 'string', 'max:255'],
+            'deploy_command' => ['nullable', 'string'],
             'branch' => ['nullable', 'string', 'max:255'],
             'ssh_key_name' => ['nullable', 'string', 'max:255'],
             'ssh_private_key' => ['nullable', 'string'],
@@ -77,6 +78,7 @@ class DeploymentController extends Controller
             'ssh_config_path' => ['nullable', 'string', 'max:255'],
             'pm2_name' => ['nullable', 'string', 'max:255'],
             'pm2_instances' => ['nullable', 'string', 'max:255'],
+            'pm2_home' => ['nullable', 'string', 'max:255'],
         ]);
 
         $data['created_by'] = $request->user()->id;
@@ -163,10 +165,11 @@ class DeploymentController extends Controller
         $envBackups = $service->listEnvBackups($deployment);
         $admins = User::where('role', User::ROLE_ADMIN)->orderBy('name')->get();
         $assignedIds = $deployment->assignedAdmins()->pluck('users.id')->all();
+        $recentJobs = $deployment->jobs()->with('requestedBy')->take(10)->get();
 
         return view(
             'deployments.show',
-            compact('deployment', 'envContents', 'envBackups', 'admins', 'assignedIds'),
+            compact('deployment', 'envContents', 'envBackups', 'admins', 'assignedIds', 'recentJobs'),
         );
     }
 

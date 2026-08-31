@@ -34,13 +34,6 @@ Route::middleware(['auth', 'role:super_admin,admin'])->group(function () {
         DeployActionController::class,
         'rebase',
     ])->name('deployments.rebase');
-    Route::post('/deployments/{deployment}/pause', [DeployActionController::class, 'pause'])->name(
-        'deployments.pause',
-    );
-    Route::post('/deployments/{deployment}/resume', [
-        DeployActionController::class,
-        'resume',
-    ])->name('deployments.resume');
     Route::post('/deployments/{deployment}/env', [
         DeployActionController::class,
         'updateEnv',

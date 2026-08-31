@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Deployment;
+use App\Models\DeploymentJob;
 use App\Models\DeploymentLog;
 use App\Services\DeploymentService;
 use Illuminate\Http\Request;
@@ -65,96 +66,43 @@ class DeployActionController extends Controller
     {
         $this->authorizeAccess($deployment, $request);
 
-        $result = $service->redeploy($deployment);
+        $result = $service->queueJob($deployment, 'deploy_now', $request->user()->id);
 
-        $deployment->update([
-            'status' => Deployment::STATUS_RUNNING,
-            'last_deployed_at' => now(),
-        ]);
-
-        $this->log($deployment, $request, 'redeploy', $result);
+        $this->log($deployment, $request, 'queue_deploy', $result);
 
         return back()->with(
             $result['success'] ? 'status' : 'error',
-            $result['success'] ? 'Redeploy finished.' : 'Redeploy failed, check the log below.',
+            $result['success'] ? 'Deployment queued.' : $result['output'],
         );
     }
 
     /**
-     * Rebase the deployment.
-     *
-     * @param Deployment $deployment The deployment to rebase.
-     * @param Request $request The request object.
-     * @param DeploymentService $service The deployment service.
-     * @return \Illuminate\Http\RedirectResponse
+     * Retry the most recent failed or completed deployment job.
      */
     public function rebase(Deployment $deployment, Request $request, DeploymentService $service)
     {
         $this->authorizeAccess($deployment, $request);
 
-        $result = $service->updateRebase($deployment);
+        $lastJob = $deployment->jobs()
+            ->whereIn('status', [DeploymentJob::STATUS_SUCCEEDED, DeploymentJob::STATUS_FAILED])
+            ->latest('id')
+            ->first();
 
-        $this->log($deployment, $request, 'update_rebase', $result);
-
-        return back()->with(
-            $result['success'] ? 'status' : 'error',
-            $result['success'] ? 'Rebase finished.' : 'Rebase failed, check the log below.',
-        );
-    }
-
-    /**
-     * Pause the deployment.
-     *
-     * @param Deployment $deployment The deployment to pause.
-     * @param Request $request The request object.
-     * @param DeploymentService $service The deployment service.
-     * @return \Illuminate\Http\RedirectResponse
-     */
-    public function pause(Deployment $deployment, Request $request, DeploymentService $service)
-    {
-        $this->authorizeAccess($deployment, $request);
-
-        $result = $deployment->isLaravel()
-            ? $service->pauseLaravel($deployment)
-            : $service->pausePm2($deployment);
-
-        if ($result['success']) {
-            $deployment->update(['status' => Deployment::STATUS_PAUSED]);
+        if (! $lastJob) {
+            return back()->with('error', 'There is no previous deployment job to retry.');
         }
 
-        $this->log($deployment, $request, 'pause', $result);
-
-        return back()->with(
-            $result['success'] ? 'status' : 'error',
-            $result['success'] ? 'Deployment paused.' : 'Pause failed, check the log below.',
-        );
-    }
-
-    /**
-     * Resume the deployment.
-     *
-     * @param Deployment $deployment The deployment to resume.
-     * @param Request $request The request object.
-     * @param DeploymentService $service The deployment service.
-     * @return \Illuminate\Http\RedirectResponse
-     */
-    public function resume(Deployment $deployment, Request $request, DeploymentService $service)
-    {
-        $this->authorizeAccess($deployment, $request);
-
-        $result = $deployment->isLaravel()
-            ? $service->resumeLaravel($deployment)
-            : $service->restartPm2($deployment);
+        $result = $service->queueJob($deployment, 'retry_deploy', $request->user()->id);
 
         if ($result['success']) {
-            $deployment->update(['status' => Deployment::STATUS_RUNNING]);
+            $result['output'] .= ' Re-running command from job #'.$lastJob->id.'.';
         }
 
-        $this->log($deployment, $request, 'resume', $result);
+        $this->log($deployment, $request, 'retry_deploy', $result);
 
         return back()->with(
             $result['success'] ? 'status' : 'error',
-            $result['success'] ? 'Deployment resumed.' : 'Resume failed, check the log below.',
+            $result['success'] ? 'Deployment retry queued.' : $result['output'],
         );
     }
 

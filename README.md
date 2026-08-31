@@ -6,9 +6,7 @@ It is intended for individuals and small teams who prefer to deploy their applic
 
 It does not provision infrastructure and it does not perform first-time deployments. Instead, it manages an existing application directory and gives your team controlled access to common production operations such as:
 
-- Git update and rebase for an existing checkout
-- Laravel optimize, down, and up commands
-- PM2 restart and stop for Node.js apps
+- Queue deployment commands for an existing checkout
 - `.env` editing with backup history
 - Admin assignment and action history
 - Per-deployment Git SSH key storage and sync
@@ -26,12 +24,11 @@ Current support includes:
 
 Each deployment record points to an application path that already exists on the server, for example `/var/www/my-app`.
 
-When a user runs a redeploy or rebase action, the app works against that existing directory. In practice this means:
+When a user queues a deploy action, the app works against that existing directory. In practice this means:
 
-- `rebase` runs Git commands in the configured project path
-- `redeploy` updates the local Git checkout, then runs the app-specific post-update command
-- Laravel apps run `php artisan optimize`
-- Node.js apps run `pm2 restart`
+- the web UI records a pending deployment job
+- cron later executes the saved deploy command under the correct server user
+- the command can be Laravel-specific, Node-specific, or a mixed shell script for your project
 
 This is production maintenance and release management for live applications, not server provisioning and not zero-to-one deployment automation.
 
@@ -133,6 +130,28 @@ If you are pulling the latest version that includes deployment SSH key support, 
 php artisan migrate
 ```
 
+## Cron Worker
+
+This project is intended to queue deploy jobs from the web UI or webhook, then execute them later with cron under the correct deploy user.
+
+Example cron entry:
+
+```cron
+* * * * * cd /path/to/production-management && php artisan deployments:run-pending >> storage/logs/deploy-cron.log 2>&1
+```
+
+Use the deployment's `deploy_command` to define what actually runs for each application. Example Laravel command:
+
+```bash
+git pull origin main && composer install --no-dev --optimize-autoloader && php artisan migrate --force && php artisan optimize
+```
+
+Example Node command:
+
+```bash
+git pull origin main && npm install && npm run build && pm2 restart my-app
+```
+
 ## Local Development
 
 Start the Laravel server:
@@ -171,8 +190,8 @@ php artisan test
 ## Operational Notes
 
 - This app assumes the target project directory already exists on the server.
-- The configured Git remote must already be valid for that project.
-- SSH key storage is intended for repository access during maintenance actions such as fetch and rebase.
+- The configured Git remote and deploy command must already be valid for that project.
+- SSH key storage is intended for repository access during queued deployment commands.
 - Only super admins can create deployments and manage deployment SSH keys.
 
 ## License

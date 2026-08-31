@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Deployment;
+use App\Models\DeploymentJob;
 use Illuminate\Support\Facades\File;
 use Symfony\Component\Process\Process;
 
@@ -22,9 +23,9 @@ class DeploymentService
     /**
      * Build a writable PM2 home directory for the current application.
      */
-    protected function pm2Home(): string
+    protected function pm2Home(?Deployment $deployment = null): string
     {
-        $path = storage_path('app/runtime-pm2');
+        $path = $deployment?->pm2_home ?: storage_path('app/runtime-pm2');
         File::ensureDirectoryExists($path, 0700, true);
 
         return $path;
@@ -43,6 +44,31 @@ class DeploymentService
             'HOME' => $this->runtimeHome(),
         ]);
         $process->setTimeout(600);
+
+        try {
+            $process->run();
+        } catch (\Throwable $e) {
+            return [
+                'success' => false,
+                'output' => $e->getMessage(),
+            ];
+        }
+
+        return [
+            'success' => $process->isSuccessful(),
+            'output' => trim($process->getOutput()."\n".$process->getErrorOutput()),
+        ];
+    }
+
+    /**
+     * Run a shell command in the given directory and return the result.
+     */
+    protected function runShell(string $command, string $cwd, array $env = []): array
+    {
+        $process = Process::fromShellCommandline($command, $cwd, $env + [
+            'HOME' => $this->runtimeHome(),
+        ]);
+        $process->setTimeout(3600);
 
         try {
             $process->run();
@@ -376,7 +402,7 @@ class DeploymentService
         $target = $deployment->pm2_instances ?: $deployment->pm2_name;
 
         return $this->run([$bin, 'restart', $target], $deployment->path, [
-            'PM2_HOME' => $this->pm2Home(),
+            'PM2_HOME' => $this->pm2Home($deployment),
         ]);
     }
 
@@ -392,7 +418,7 @@ class DeploymentService
         $target = $deployment->pm2_instances ?: $deployment->pm2_name;
 
         return $this->run([$bin, 'stop', $target], $deployment->path, [
-            'PM2_HOME' => $this->pm2Home(),
+            'PM2_HOME' => $this->pm2Home($deployment),
         ]);
     }
 
@@ -445,5 +471,74 @@ class DeploymentService
         $steps[] = "\$ pm2 restart ".($deployment->pm2_instances ?: $deployment->pm2_name)."\n".$restart['output'];
 
         return ['success' => $restart['success'], 'output' => implode("\n\n", $steps)];
+    }
+
+    /**
+     * Queue a deployment job for later execution by cron.
+     */
+    public function queueJob(Deployment $deployment, string $action, ?int $requestedBy = null): array
+    {
+        $command = trim((string) $deployment->deploy_command);
+
+        if ($command === '') {
+            return [
+                'success' => false,
+                'output' => 'No deploy command is configured for this application.',
+            ];
+        }
+
+        $existing = $deployment->jobs()
+            ->whereIn('status', [DeploymentJob::STATUS_PENDING, DeploymentJob::STATUS_RUNNING])
+            ->exists();
+
+        if ($existing) {
+            return [
+                'success' => false,
+                'output' => 'A deployment job is already pending or running for this application.',
+            ];
+        }
+
+        $job = $deployment->jobs()->create([
+            'requested_by' => $requestedBy,
+            'action' => $action,
+            'command' => $command,
+            'status' => DeploymentJob::STATUS_PENDING,
+        ]);
+
+        return [
+            'success' => true,
+            'output' => 'Deployment job #'.$job->id.' queued.',
+            'job' => $job,
+        ];
+    }
+
+    /**
+     * Execute one queued deployment job.
+     */
+    public function runJob(DeploymentJob $job): array
+    {
+        $job->update([
+            'status' => DeploymentJob::STATUS_RUNNING,
+            'started_at' => now(),
+            'output' => null,
+        ]);
+
+        $result = $this->runShell($job->command, $job->deployment->path, [
+            'PM2_HOME' => $this->pm2Home($job->deployment),
+        ]);
+
+        $job->update([
+            'status' => $result['success'] ? DeploymentJob::STATUS_SUCCEEDED : DeploymentJob::STATUS_FAILED,
+            'finished_at' => now(),
+            'output' => $result['output'],
+        ]);
+
+        if ($result['success']) {
+            $job->deployment->update([
+                'last_deployed_at' => now(),
+            ]);
+        }
+
+        return $result;
     }
 }

@@ -29,6 +29,7 @@ class Deployment extends Model
         'type',
         'path',
         'repo_url',
+        'deploy_command',
         'branch',
         'ssh_key_name',
         'ssh_private_key',
@@ -37,6 +38,7 @@ class Deployment extends Model
         'ssh_config_path',
         'pm2_name',
         'pm2_instances',
+        'pm2_home',
         'status',
         'created_by',
         'updated_by',
@@ -76,6 +78,11 @@ class Deployment extends Model
     public function logs(): HasMany
     {
         return $this->hasMany(DeploymentLog::class)->latest();
+    }
+
+    public function jobs(): HasMany
+    {
+        return $this->hasMany(DeploymentJob::class)->latest();
     }
 
     /**

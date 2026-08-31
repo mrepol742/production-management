@@ -33,6 +33,13 @@
             </div>
 
             <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Deploy command</label>
+                <textarea name="deploy_command" rows="6" spellcheck="false" placeholder="git pull origin main && composer install --no-dev --optimize-autoloader && php artisan migrate --force && php artisan optimize"
+                    class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-mono focus:border-accent-500 focus:ring-accent-500 focus:outline-none">{{ old('deploy_command') }}</textarea>
+                <p class="text-xs text-gray-400 mt-1">This command is queued from the UI or webhook, then executed later by <code>php artisan deployments:run-pending</code> under your cron user.</p>
+            </div>
+
+            <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Branch</label>
                 <input type="text" name="branch" value="{{ old('branch', 'main') }}"
                     class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent-500 focus:ring-accent-500 focus:outline-none">
@@ -90,6 +97,13 @@
                         class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent-500 focus:ring-accent-500 focus:outline-none">
                     <p class="text-xs text-gray-400 mt-1">Used instead of app name for pm2 restart if set.</p>
                 </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">PM2 home path</label>
+                <input type="text" name="pm2_home" value="{{ old('pm2_home') }}" placeholder="/home/deploy/.pm2"
+                    class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-mono focus:border-accent-500 focus:ring-accent-500 focus:outline-none">
+                <p class="text-xs text-gray-400 mt-1">Optional. Set this to the real PM2 home used by the user that already runs the process. Example: <code>/home/deploy/.pm2</code>.</p>
             </div>
 
             <div class="flex items-center gap-3 pt-2">
