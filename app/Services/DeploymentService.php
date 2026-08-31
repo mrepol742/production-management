@@ -16,8 +16,29 @@ class DeploymentService
     {
         $path = storage_path('app/runtime-home');
         File::ensureDirectoryExists($path, 0700, true);
+        File::ensureDirectoryExists($path.'/.config/git', 0700, true);
+
+        $gitConfig = $path.'/.gitconfig';
+        if (! file_exists($gitConfig)) {
+            File::put($gitConfig, '');
+            @chmod($gitConfig, 0600);
+        }
 
         return $path;
+    }
+
+    /**
+     * Build environment variables for child processes that should not depend on system user config.
+     */
+    protected function runtimeEnvironment(array $env = []): array
+    {
+        $home = $this->runtimeHome();
+
+        return $env + [
+            'HOME' => $home,
+            'XDG_CONFIG_HOME' => $home.'/.config',
+            'GIT_CONFIG_GLOBAL' => $home.'/.gitconfig',
+        ];
     }
 
     /**
@@ -40,9 +61,7 @@ class DeploymentService
      */
     protected function run(array $command, string $cwd, array $env = []): array
     {
-        $process = new Process($command, $cwd, $env + [
-            'HOME' => $this->runtimeHome(),
-        ]);
+        $process = new Process($command, $cwd, $this->runtimeEnvironment($env));
         $process->setTimeout(600);
 
         try {
@@ -65,9 +84,7 @@ class DeploymentService
      */
     protected function runShell(string $command, string $cwd, array $env = []): array
     {
-        $process = Process::fromShellCommandline($command, $cwd, $env + [
-            'HOME' => $this->runtimeHome(),
-        ]);
+        $process = Process::fromShellCommandline($command, $cwd, $this->runtimeEnvironment($env));
         $process->setTimeout(3600);
 
         try {
