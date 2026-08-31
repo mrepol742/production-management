@@ -30,6 +30,9 @@ class Deployment extends Model
         'path',
         'repo_url',
         'branch',
+        'ssh_key_name',
+        'ssh_private_key',
+        'ssh_private_key_path',
         'pm2_name',
         'pm2_instances',
         'status',
@@ -48,6 +51,7 @@ class Deployment extends Model
     {
         return [
             'last_deployed_at' => 'datetime',
+            'ssh_private_key' => 'encrypted',
         ];
     }
 
@@ -119,5 +123,13 @@ class Deployment extends Model
     public function envPath(): string
     {
         return rtrim($this->path, '/').'/.env';
+    }
+
+    /**
+     * Determine whether this deployment has an SSH key configured for Git operations.
+     */
+    public function hasStoredSshKey(): bool
+    {
+        return filled($this->ssh_private_key);
     }
 }

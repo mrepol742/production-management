@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Models\Deployment;
-use Symfony\Component\Process\Exception\ProcessFailedException;
+use Illuminate\Support\Facades\File;
 use Symfony\Component\Process\Process;
 
 class DeploymentService
@@ -15,9 +15,9 @@ class DeploymentService
      * @param string $cwd The directory to run the command in
      * @return array The result of the command
      */
-    protected function run(array $command, string $cwd): array
+    protected function run(array $command, string $cwd, array $env = []): array
     {
-        $process = new Process($command, $cwd);
+        $process = new Process($command, $cwd, $env ?: null);
         $process->setTimeout(600);
 
         try {
@@ -36,6 +36,108 @@ class DeploymentService
     }
 
     /**
+     * Run a Git command for the given deployment using its stored SSH key when present.
+     */
+    protected function runGit(Deployment $deployment, array $command, string $cwd): array
+    {
+        if (! $deployment->hasStoredSshKey()) {
+            return $this->run($command, $cwd);
+        }
+
+        $directory = storage_path('app/deployment-ssh');
+        File::ensureDirectoryExists($directory, 0700, true);
+
+        $keyPath = $directory.'/deployment-'.$deployment->id;
+        File::put($keyPath, rtrim((string) $deployment->ssh_private_key)."\n");
+        @chmod($keyPath, 0600);
+
+        $sshCommand = sprintf(
+            'ssh -i %s -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new',
+            escapeshellarg($keyPath),
+        );
+
+        try {
+            return $this->run($command, $cwd, [
+                'GIT_SSH_COMMAND' => $sshCommand,
+            ]);
+        } finally {
+            @unlink($keyPath);
+        }
+    }
+
+    /**
+     * Store the SSH private key for a deployment.
+     */
+    public function updateSshKey(
+        Deployment $deployment,
+        ?string $privateKey,
+        ?string $keyName = null,
+        ?string $sourcePath = null,
+    ): array {
+        $privateKey = $privateKey !== null ? trim($privateKey) : null;
+
+        if (blank($privateKey)) {
+            $deployment->update([
+                'ssh_key_name' => null,
+                'ssh_private_key' => null,
+                'ssh_private_key_path' => null,
+            ]);
+
+            return ['success' => true, 'output' => 'Stored SSH key removed.'];
+        }
+
+        if (! str_contains($privateKey, 'BEGIN OPENSSH PRIVATE KEY')
+            && ! str_contains($privateKey, 'BEGIN RSA PRIVATE KEY')
+            && ! str_contains($privateKey, 'BEGIN EC PRIVATE KEY')
+            && ! str_contains($privateKey, 'BEGIN PRIVATE KEY')) {
+            return ['success' => false, 'output' => 'The provided SSH private key does not look valid.'];
+        }
+
+        $deployment->update([
+            'ssh_key_name' => $keyName ?: $deployment->ssh_key_name ?: 'deploy-key',
+            'ssh_private_key' => $privateKey,
+            'ssh_private_key_path' => $sourcePath,
+        ]);
+
+        return [
+            'success' => true,
+            'output' => 'Stored SSH key updated for Git operations.',
+        ];
+    }
+
+    /**
+     * Import the SSH private key from a file on disk.
+     */
+    public function syncSshKeyFromPath(
+        Deployment $deployment,
+        string $sourcePath,
+        ?string $keyName = null,
+    ): array {
+        $sourcePath = trim($sourcePath);
+
+        if ($sourcePath === '') {
+            return ['success' => false, 'output' => 'SSH key source path is required.'];
+        }
+
+        if (! is_file($sourcePath) || ! is_readable($sourcePath)) {
+            return ['success' => false, 'output' => 'SSH key source path is not readable: '.$sourcePath];
+        }
+
+        $contents = file_get_contents($sourcePath);
+
+        if ($contents === false) {
+            return ['success' => false, 'output' => 'Failed to read SSH key source path: '.$sourcePath];
+        }
+
+        return $this->updateSshKey(
+            $deployment,
+            $contents,
+            $keyName ?: basename($sourcePath),
+            $sourcePath,
+        );
+    }
+
+    /**
      * Update the rebase for the given deployment.
      *
      * @param Deployment $deployment The deployment to update
@@ -48,13 +150,13 @@ class DeploymentService
 
         $steps = [];
 
-        $fetch = $this->run(['git', 'fetch', 'origin'], $path);
+        $fetch = $this->runGit($deployment, ['git', 'fetch', 'origin'], $path);
         $steps[] = "\$ git fetch origin\n".$fetch['output'];
         if (! $fetch['success']) {
             return ['success' => false, 'output' => implode("\n\n", $steps)];
         }
 
-        $rebase = $this->run(['git', 'rebase', "origin/{$branch}"], $path);
+        $rebase = $this->runGit($deployment, ['git', 'rebase', "origin/{$branch}"], $path);
         $steps[] = "\$ git rebase origin/{$branch}\n".$rebase['output'];
 
         return [

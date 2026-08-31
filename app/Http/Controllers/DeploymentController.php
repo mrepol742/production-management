@@ -70,6 +70,9 @@ class DeploymentController extends Controller
             'path' => ['required', 'string', 'max:255'],
             'repo_url' => ['nullable', 'string', 'max:255'],
             'branch' => ['nullable', 'string', 'max:255'],
+            'ssh_key_name' => ['nullable', 'string', 'max:255'],
+            'ssh_private_key' => ['nullable', 'string'],
+            'ssh_private_key_path' => ['nullable', 'string', 'max:255'],
             'pm2_name' => ['nullable', 'string', 'max:255'],
             'pm2_instances' => ['nullable', 'string', 'max:255'],
         ]);
@@ -80,6 +83,35 @@ class DeploymentController extends Controller
         $data['branch'] = $data['branch'] ?: 'main';
 
         $deployment = Deployment::create($data);
+
+        if (filled($data['ssh_private_key_path'] ?? null) && blank($data['ssh_private_key'] ?? null)) {
+            $service = app(DeploymentService::class);
+            $result = $service->syncSshKeyFromPath(
+                $deployment,
+                $data['ssh_private_key_path'],
+                $data['ssh_key_name'] ?? null,
+            );
+
+            if (! $result['success']) {
+                return back()
+                    ->withInput()
+                    ->with('error', $result['output']);
+            }
+        } elseif (filled($data['ssh_private_key'] ?? null)) {
+            $service = app(DeploymentService::class);
+            $result = $service->updateSshKey(
+                $deployment,
+                $data['ssh_private_key'],
+                $data['ssh_key_name'] ?? null,
+                $data['ssh_private_key_path'] ?? null,
+            );
+
+            if (! $result['success']) {
+                return back()
+                    ->withInput()
+                    ->with('error', $result['output']);
+            }
+        }
 
         return redirect()
             ->route('deployments.show', $deployment)
@@ -146,6 +178,56 @@ class DeploymentController extends Controller
         $deployment->assignedAdmins()->sync($adminIds);
 
         return back()->with('status', 'Assignments updated.');
+    }
+
+    /**
+     * Update the stored SSH key for the deployment.
+     */
+    public function updateSshKey(Deployment $deployment, Request $request, DeploymentService $service)
+    {
+        $request->validate([
+            'ssh_key_name' => ['nullable', 'string', 'max:255'],
+            'ssh_private_key' => ['nullable', 'string'],
+            'ssh_private_key_path' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $sourcePath = $request->input('ssh_private_key_path');
+        $privateKey = $request->input('ssh_private_key');
+
+        $result = filled($sourcePath) && blank($privateKey)
+            ? $service->syncSshKeyFromPath($deployment, $sourcePath, $request->input('ssh_key_name'))
+            : $service->updateSshKey(
+                $deployment,
+                $privateKey,
+                $request->input('ssh_key_name'),
+                $sourcePath,
+            );
+
+        return back()->with(
+            $result['success'] ? 'status' : 'error',
+            $result['output'],
+        );
+    }
+
+    /**
+     * Re-import the stored SSH key from its configured source path.
+     */
+    public function syncSshKey(Deployment $deployment, DeploymentService $service)
+    {
+        if (blank($deployment->ssh_private_key_path)) {
+            return back()->with('error', 'No SSH key source path is configured for this deployment.');
+        }
+
+        $result = $service->syncSshKeyFromPath(
+            $deployment,
+            $deployment->ssh_private_key_path,
+            $deployment->ssh_key_name,
+        );
+
+        return back()->with(
+            $result['success'] ? 'status' : 'error',
+            $result['output'],
+        );
     }
 
     /**
